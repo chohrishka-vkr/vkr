@@ -25,7 +25,7 @@ CAMERAS = {
     },
     "cam_36": {
         "url": "https://techvision.dvfu.ru/cameras/go2rtc-36/api/stream.m3u8?src=camera-36&mp4=flac",
-        "hall_name": "зал функционального тренинга",
+        "hall_name": "Зал функционального тренинга",
         "user_id": 1,
         "model_path": "yolo11m.pt"
     }

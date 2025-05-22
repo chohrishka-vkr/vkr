@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 from clickhouse_driver import Client
 from ultralytics import YOLO
-from ..detection_service.config import CAMERAS, CLICKHOUSE_CONFIG
+from detection_service.config import CAMERAS, CLICKHOUSE_CONFIG
 
 class DetectionScheduler:
     def __init__(self):

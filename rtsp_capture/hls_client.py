@@ -9,7 +9,7 @@ class HLSCamera:
         self.output_dir = Path(__file__).parent / "storage/snapshots"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def capture_frame(self) -> Path:
+    def capture_frame(self, output_dir) -> Path:
         """Захват кадра из HLS-потока"""
         cap = cv2.VideoCapture(self.hls_url)
         if not cap.isOpened():
@@ -23,7 +23,7 @@ class HLSCamera:
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"snapshot_{timestamp}.jpg"
-        filepath = self.output_dir / filename
+        filepath = f"{output_dir}/{filename}"
 
         cv2.imwrite(str(filepath), frame)
         return filepath
