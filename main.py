@@ -6,9 +6,8 @@ def main():
     
     try:
         print("🚀 Запуск системы мониторинга для всех камер...")
-        scheduler.start_monitoring(interval=30)  # Интервал в секундах
+        scheduler.start_monitoring(interval=30)
         
-        # Основной цикл
         while True:
             time.sleep(1)
             

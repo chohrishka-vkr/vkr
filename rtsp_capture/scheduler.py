@@ -1,9 +1,8 @@
 import time
 import threading
-from pathlib import Path
 from datetime import datetime
 from clickhouse_driver import Client
-from ultralytics import YOLO
+import numpy as np
 from detection_service.config import CAMERAS, CLICKHOUSE_CONFIG
 
 class DetectionScheduler:
@@ -13,28 +12,27 @@ class DetectionScheduler:
         self.processors = {}
 
     def init_camera_processor(self, camera_id: str):
-        """Инициализация обработчика для конкретной камеры"""
+        """Инициализация обработчика камеры"""
         from .hls_client import HLSCamera
+        from detection_service.counter import PeopleCounter
+        
         config = CAMERAS[camera_id]
         
         self.processors[camera_id] = {
             "camera": HLSCamera(config["url"]),
-            "model": YOLO(config["model_path"]),
-            "config": config,
-            "output_dir": Path(f"storage/snapshots/{camera_id}")
+            "counter": PeopleCounter(),
+            "config": config
         }
-        self.processors[camera_id]["output_dir"].mkdir(parents=True, exist_ok=True)
 
     def process_frame(self, camera_id: str):
-        """Обработка одного кадра с сохранением результатов"""
+        """Обработка кадра в памяти"""
         proc = self.processors[camera_id]
         try:
-            # Захват кадра
-            frame_path = proc["camera"].capture_frame(str(proc["output_dir"]))
+            # Захват кадра в память
+            frame, timestamp = proc["camera"].capture_frame()
             
             # Детекция людей
-            results = proc["model"](frame_path, classes=[0], conf=0.5)
-            count = len(results[0].boxes)
+            result = proc["counter"].process_frame(frame)
             
             # Сохранение в ClickHouse
             self.ch_client.execute(
@@ -43,12 +41,12 @@ class DetectionScheduler:
                     'user_id': proc["config"]["user_id"],
                     'camera_id': camera_id,
                     'hall_name': proc["config"]["hall_name"],
-                    'timestamp': datetime.now(),
-                    'people_count': count
+                    'timestamp': timestamp,
+                    'people_count': result["count"]
                 }]
             )
             
-            print(f"[{proc['config']['hall_name']}] Обнаружено людей: {count}")
+            print(f"[{proc['config']['hall_name']}] Обнаружено людей: {result['count']}")
             return True
             
         except Exception as e:
@@ -56,7 +54,7 @@ class DetectionScheduler:
             return False
 
     def start_monitoring(self, interval: int = 30):
-        """Запуск мониторинга для всех камер"""
+        """Запуск мониторинга"""
         for camera_id in CAMERAS.keys():
             self.init_camera_processor(camera_id)
             
@@ -67,12 +65,14 @@ class DetectionScheduler:
             ).start()
 
     def _monitor_worker(self, camera_id: str, interval: int):
-        """Поток мониторинга для отдельной камеры"""
+        """Поток обработки камеры"""
         while not self.stop_event.is_set():
             self.process_frame(camera_id)
             time.sleep(interval)
 
     def stop(self):
-        """Корректная остановка всех процессов"""
+        """Остановка системы"""
         self.stop_event.set()
+        for proc in self.processors.values():
+            proc["camera"].release()
         self.ch_client.disconnect()

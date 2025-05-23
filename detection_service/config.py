@@ -1,8 +1,6 @@
 from pathlib import Path
 
-# Пути по умолчанию
 MODEL_PATH = Path("models/yolo11m.pt")
-OUTPUT_DIR = Path("storage/detections")
 
 CAMERAS = {
     "cam_35": {
