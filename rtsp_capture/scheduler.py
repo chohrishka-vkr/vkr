@@ -20,7 +20,7 @@ class DetectionScheduler:
         
         self.processors[camera_id] = {
             "camera": HLSCamera(config["url"]),
-            "counter": PeopleCounter(),
+            "counter": PeopleCounter(camera_id),
             "config": config
         }
 
@@ -46,7 +46,7 @@ class DetectionScheduler:
                 }]
             )
             
-            print(f"[{proc['config']['hall_name']}] Обнаружено людей: {result['count']}")
+            print(f"[{proc['config']['hall_name']}, {camera_id}] Обнаружено людей: {result['count']}")
             return True
             
         except Exception as e:

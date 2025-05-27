@@ -2,8 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from clickhouse_driver import Client
 from datetime import datetime, timedelta
-from ..detection_service.config import CLICKHOUSE_CONFIG
+from detection_service.config import CLICKHOUSE_CONFIG
 from .schemas import AnalyticsRequest
+import cv2
+from fastapi.responses import Response
+import numpy as np
+from detection_service.config import CAMERAS
+from rtsp_capture.hls_client import HLSCamera
+
 
 router = APIRouter()
 
@@ -41,8 +47,7 @@ async def get_analytics(
         query = """
         SELECT 
             toStartOfHour(timestamp) as hour,
-            avg(people_count) as avg_people,
-            hall_name
+            people_count as people,
         FROM people_count
         WHERE 1=1
         """
@@ -76,5 +81,28 @@ async def get_analytics(
                 "hall_name": row[2]
             } for row in results]
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/frame")
+async def get_camera_screenshot(camera_id: str):
+    """Получение чистого скриншота с камеры без визуализации исключенных зон"""
+    try:
+        # Проверяем, что камера существует в конфигурации
+        if camera_id not in CAMERAS:
+            raise HTTPException(status_code=404, detail="Camera not found")
+        
+        # Получаем конфигурацию камеры
+        config = CAMERAS[camera_id]
+        
+        # Создаем временный экземпляр камеры для захвата кадра
+        camera = HLSCamera(config["url"])
+        frame, _ = camera.capture_frame()
+        camera.release()
+        
+        # Конвертируем кадр в JPEG (без добавления exclusion_zones)
+        _, img_encoded = cv2.imencode('.jpg', frame)
+        
+        return Response(content=img_encoded.tobytes(), media_type="image/jpeg")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
