@@ -1,6 +1,6 @@
 from datetime import datetime
 import numpy as np
-from detection_service.config import CAMERAS
+from detection_service.config import CAMERAS, COUNTER_API_URl
 
 class PeopleCounter:
     def __init__(self, camera_id: str):
@@ -8,7 +8,7 @@ class PeopleCounter:
         config = CAMERAS[camera_id]
         from .detector import PeopleDetector
         self.detector = PeopleDetector(
-            model_path=config["model_path"],
+            api_url=COUNTER_API_URl,
             exclusion_zones=config.get("exclusion_zones", [])
         )
 

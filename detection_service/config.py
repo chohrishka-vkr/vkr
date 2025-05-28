@@ -1,7 +1,5 @@
 from pathlib import Path
 
-MODEL_PATH = Path("models/yolo11m.pt")
-
 CAMERAS = {
     "cam_117": {
         "url": "https://techvision.dvfu.ru/cameras/go2rtc-117/api/stream.m3u8?src=camera-117&mp4=flac",
@@ -51,3 +49,5 @@ CLICKHOUSE_CONFIG = {
     "password": "njhnbr",
     "database": "fitness_analytics"
 }
+
+COUNTER_API_URl = 'http://10.61.17.48:8000/api/upload/'
