@@ -17,6 +17,5 @@ class PeopleCounter:
         count = self.detector.detect(frame)
         return {
             "count": count,
-            # "annotated_frame": annotated_frame,
             "timestamp": datetime.now()
         }

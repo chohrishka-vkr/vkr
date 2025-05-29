@@ -16,7 +16,7 @@ app.add_middleware(
 )
 
 from API.endpoints import router as api_router
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router)
 
 def run_monitoring():
     scheduler = DetectionScheduler()
@@ -41,7 +41,6 @@ def run_web_server():
 
 if __name__ == "__main__":
     try:
-        # Проверка подключения к ClickHouse перед запуском
         test_client = Client(**CLICKHOUSE_CONFIG)
         test_client.execute("SELECT 1")
         test_client.disconnect()

@@ -12,6 +12,9 @@ from rtsp_capture.hls_client import HLSCamera
 import base64
 import json
 from fastapi.responses import HTMLResponse
+import base64
+from fastapi.responses import JSONResponse
+from typing import List
 
 router = APIRouter()
 
@@ -22,19 +25,15 @@ def get_ch_client():
     finally:
         client.disconnect()
 
-@router.get("/current_people")
+@router.get("/api/people-count/{hall_name}/")
+@router.get("/api/people-count/camera/{camera_id}/")
 async def get_current_people(
     hall_name: str = None, 
     camera_id: str = None,
     client: Client = Depends(get_ch_client)
 ):
-    """
-    Получение текущего количества людей (по камере или сумма по всем камерам зала)
-    Возвращает только количество и время последнего обновления
-    """
     try:
         if camera_id:
-            # Если указана конкретная камера - возвращаем её данные
             query = """
             SELECT 
                 people_count,
@@ -44,9 +43,21 @@ async def get_current_people(
             ORDER BY timestamp DESC
             LIMIT 1
             """
-            result = client.execute(query, {"camera_id": camera_id})
+            params = {"camera_id": camera_id}
+            result = client.execute(query, params)
+            
+            if not result:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No data found for camera {camera_id}"
+                )
+            
+            return {
+                "count": result[0][0],
+                "last_updated": result[0][1].strftime("%Y-%m-%d %H:%M:%S")
+            }
+        
         elif hall_name:
-            # Если указан зал - суммируем по всем его камерам
             query = """
             WITH latest_entries AS (
                 SELECT 
@@ -64,28 +75,34 @@ async def get_current_people(
             WHERE rn = 1
             """
             result = client.execute(query, {"hall_name": hall_name})
-        else:
-            # Если не указаны параметры - возвращаем 0
-            return {"count": 0}
+            
+            if not result or result[0][0] is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No data found for hall {hall_name}"
+                )
+            
+            return {
+                "count": result[0][0],
+                "last_updated": result[0][1].strftime("%Y-%m-%d %H:%M:%S")
+            }
         
-        if not result or result[0][0] is None:
-            return {"count": 0}
+        return {"count": 0}
         
-        return {
-            "count": result[0][0],
-            "last_updated": result[0][1].strftime("%Y-%m-%d %H:%M:%S")
-        }
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 
-@router.get("/analytics")
+@router.get("/api/people-analytics/{hall_name}/{date_from}/{date_to}/")
 async def get_analytics(
     request: AnalyticsRequest = Depends(),
     client: Client = Depends(get_ch_client)
 ):
-    """Получение суммарной аналитики по всем камерам зала (без детализации по камерам)"""
     try:
         query = """
         SELECT 
@@ -110,25 +127,32 @@ async def get_analytics(
         ORDER BY timestamp
         """
         
-        results = client.execute(query, params)
+        results: List[tuple] = client.execute(query, params)
+        
+        if not results:
+            raise HTTPException(
+                status_code=404,
+                detail="No analytics data found for the specified parameters"
+            )
         
         return {
-            "hall_name": request.hall_name,
             "data": [{
                 "timestamp": row[0].strftime("%Y-%m-%d %H:%M:%S"),
                 "total_people": row[1]
             } for row in results]
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-import base64
-from fastapi.responses import JSONResponse
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
 
-@router.get("/hall_frames")
+
+@router.get("/api/hall_frames/{hall_name}")
 async def get_hall_screenshots(hall_name: str):
-    """Получение скриншотов с камер зала — все по отдельности в JSON base64"""
     try:
         hall_cameras = [
             config for config in CAMERAS.values() 
@@ -158,133 +182,56 @@ async def get_hall_screenshots(hall_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/show_images", response_class=HTMLResponse)
-async def show_images_page():
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Camera Frames</title>
-        <style>
-            html, body {
-                margin: 0;
-                padding: 0;
-                height: 100%;
-                width: 100%;
-                overflow: hidden;
-                background: #f0f0f0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                box-sizing: border-box;
-            }
-            body {
-                flex-direction: column;
-            }
-            .container {
-                width: 95vw;
-                max-height: 95vh;
-                display: flex;
-                flex-direction: column;
-                gap: 15px;
-                box-sizing: border-box;
-            }
-            .row {
-                display: flex;
-                justify-content: center;
-                gap: 15px;
-                flex-wrap: nowrap;
-            }
-            .row img {
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                background: white;
-                object-fit: contain;
-                max-height: 40vh;
-                max-width: 45vw;
-                width: auto;
-            }
-            /* Если одно изображение — оно крупнее */
-            .single-row img {
-                max-width: 90vw;
-                max-height: 90vh;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container" id="container">
-            <!-- Верхний ряд -->
-            <div class="row" id="top-row"></div>
-            <!-- Нижний ряд -->
-            <div class="row" id="bottom-row"></div>
-        </div>
+@router.get("/api/peak-hours/{hall_name}/{date_from}/{date_to}/")
+async def get_peak_hours(
+    hall_name: str,
+    date_from: str,
+    date_to: str,
+    client: Client = Depends(get_ch_client)
+):
+    try:
+        try:
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d")
+            if dt_to < dt_from:
+                raise HTTPException(400, "End date must be after start date")
+        except ValueError:
+            raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
 
-        <script>
-            function getQueryParam(param) {
-                const urlParams = new URLSearchParams(window.location.search);
-                return urlParams.get(param);
-            }
-
-            const hallName = getQueryParam('hall_name');
-            const topRow = document.getElementById('top-row');
-            const bottomRow = document.getElementById('bottom-row');
-            const container = document.getElementById('container');
-
-            if (!hallName) {
-                container.textContent = 'Parameter hall_name is required in the URL.';
-            } else {
-                fetch(`/api/v1/hall_frames?hall_name=${encodeURIComponent(hallName)}`)
-                    .then(res => {
-                        if (!res.ok) throw new Error('Network response was not ok');
-                        return res.json();
-                    })
-                    .then(data => {
-                        if (!data.images || data.images.length === 0) {
-                            container.textContent = 'No images found for this hall.';
-                            return;
-                        }
-
-                        const images = data.images;
-
-                        if (images.length === 1) {
-                            // Один кадр — в один ряд, увеличенный размер
-                            container.innerHTML = '';  // очистить
-                            const img = document.createElement('img');
-                            img.src = 'data:image/jpeg;base64,' + images[0];
-                            img.alt = 'Camera 1';
-                            img.style.maxWidth = '90vw';
-                            img.style.maxHeight = '90vh';
-                            img.style.border = '1px solid #ccc';
-                            img.style.borderRadius = '4px';
-                            img.style.background = 'white';
-                            container.classList.add('single-row');
-                            container.appendChild(img);
-                        } else {
-                            // Несколько кадров
-                            container.classList.remove('single-row');
-                            // первые два в верхний ряд
-                            for (let i = 0; i < 2 && i < images.length; i++) {
-                                const img = document.createElement('img');
-                                img.src = 'data:image/jpeg;base64,' + images[i];
-                                img.alt = `Camera ${i + 1}`;
-                                topRow.appendChild(img);
-                            }
-                            // остальные — в нижний ряд
-                            for (let i = 2; i < images.length; i++) {
-                                const img = document.createElement('img');
-                                img.src = 'data:image/jpeg;base64,' + images[i];
-                                img.alt = `Camera ${i + 1}`;
-                                bottomRow.appendChild(img);
-                            }
-                        }
-                    })
-                    .catch(err => {
-                        container.textContent = 'Error loading images: ' + err.message;
-                        console.error(err);
-                    });
-            }
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+        query = """
+        SELECT 
+            toHour(timestamp) as hour,
+            AVG(people_count) as avg_people
+        FROM (
+            SELECT 
+                timestamp,
+                SUM(people_count) as people_count
+            FROM people_count
+            WHERE hall_name = %(hall_name)s
+              AND timestamp >= %(date_from)s
+              AND timestamp <= %(date_to)s
+            GROUP BY timestamp
+        )
+        GROUP BY hour
+        ORDER BY hour
+        """
+        
+        result = client.execute(query, {
+            "hall_name": hall_name,
+            "date_from": date_from,
+            "date_to": date_to
+        })
+        
+        if not result:
+            raise HTTPException(404, "No data available for the selected period")
+            
+        return {
+            "hall": hall_name,
+            "period": f"{date_from} to {date_to}",
+            "data": [{"hour": row[0], "avg_people": round(row[1], 1)} for row in result]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Server error: {str(e)}")
