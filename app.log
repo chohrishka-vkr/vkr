@@ -1,0 +1,68 @@
+2025-05-29 12:04:50,534 - clickhouse_driver.connection - WARNING - Failed to connect to localhost:9000,
+Traceback (most recent call last):
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 399, in connect
+    return self._init_connection(host, port)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 329, in _init_connection
+    self.socket = self._create_socket(host, port)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 280, in _create_socket
+    for res in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 10109] getaddrinfo failed
+2025-05-29 12:04:55,056 - clickhouse_driver.connection - WARNING - Failed to connect to localhost:9000,
+Traceback (most recent call last):
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 399, in connect
+    return self._init_connection(host, port)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 329, in _init_connection
+    self.socket = self._create_socket(host, port)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 280, in _create_socket
+    for res in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 10109] getaddrinfo failed
+2025-05-29 12:04:57,468 - clickhouse_driver.connection - WARNING - Failed to connect to localhost:9000,
+Traceback (most recent call last):
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 399, in connect
+    return self._init_connection(host, port)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 329, in _init_connection
+    self.socket = self._create_socket(host, port)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 280, in _create_socket
+    for res in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 10109] getaddrinfo failed
+2025-05-29 12:04:58,517 - clickhouse_driver.connection - WARNING - Failed to connect to localhost:9000,
+Traceback (most recent call last):
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 399, in connect
+    return self._init_connection(host, port)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 329, in _init_connection
+    self.socket = self._create_socket(host, port)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\Desktop\fitnes_vkr\.venv\Lib\site-packages\clickhouse_driver\connection.py", line 280, in _create_socket
+    for res in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\admin\AppData\Local\Programs\Python\Python311\Lib\socket.py", line 962, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 10109] getaddrinfo failed
+2025-05-29 12:05:31,599 - uvicorn.error - INFO - Started server process [5768]
+2025-05-29 12:05:31,599 - uvicorn.error - INFO - Waiting for application startup.
+2025-05-29 12:05:31,600 - uvicorn.error - INFO - Application startup complete.
+2025-05-29 12:05:31,600 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-05-29 12:07:08,592 - uvicorn.error - INFO - Started server process [16892]
+2025-05-29 12:07:08,592 - uvicorn.error - INFO - Waiting for application startup.
+2025-05-29 12:07:08,592 - uvicorn.error - INFO - Application startup complete.
+2025-05-29 12:07:08,593 - uvicorn.error - INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

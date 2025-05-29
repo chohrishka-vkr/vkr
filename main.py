@@ -1,10 +1,20 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import threading
 import time
 from rtsp_capture.scheduler import DetectionScheduler
-from detection_service.config import CLICKHOUSE_CONFIG
+from core.config import CLICKHOUSE_CONFIG
 from clickhouse_driver import Client
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+    ]
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Fitness Analytics Dashboard API")
 
@@ -22,29 +32,31 @@ def run_monitoring():
     scheduler = DetectionScheduler()
     
     try:
-        print("🚀 Запуск системы мониторинга для всех камер...")
+        logger.info("🚀 Launching a monitoring system for all cameras...")
         scheduler.start_monitoring(interval=30)
         
         while True:
             time.sleep(1)
             
     except KeyboardInterrupt:
-        print("\n🛑 Получен сигнал остановки мониторинга")
+        logger.info("\n🛑 Monitoring stop signal received")
         scheduler.stop()
-        print("✅ Все процессы мониторинга корректно остановлены")
+        logger.info("✅ All monitoring processes have been stopped correctly")
+    except Exception as e:
+        logger.error(f"Error in monitoring: {str(e)}", exc_info=True)
 
 def run_web_server():
-    """Функция для запуска веб-сервера"""
+    """A function for launching a web server"""
     import uvicorn
-    print("🚀 Запуск веб-сервера API...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    logger.info("🚀 Launching the API Web Server...")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)
 
 if __name__ == "__main__":
     try:
         test_client = Client(**CLICKHOUSE_CONFIG)
         test_client.execute("SELECT 1")
         test_client.disconnect()
-        print("✅ Проверка подключения к ClickHouse успешна")
+        logger.info("✅ Verification of connection to ClickHouse is successful")
 
         monitoring_thread = threading.Thread(target=run_monitoring, daemon=True)
         web_thread = threading.Thread(target=run_web_server, daemon=True)
@@ -55,8 +67,8 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n🛑 Получен сигнал остановки приложения")
+        logger.info("\n🛑 An application stop signal has been received")
     except Exception as e:
-        print(f"⚠️ Ошибка инициализации: {str(e)}")
+        logger.error(f"⚠️ Initialization error: {str(e)}", exc_info=True)
     finally:
-        print("✅ Приложение корректно остановлено")
+        logger.info("✅ The application was stopped correctly")

@@ -9,7 +9,7 @@ class PeopleDetector:
         self.exclusion_zones = exclusion_zones or []
     
     def _apply_mask(self, frame: np.ndarray) -> np.ndarray:
-        """Создает маску исключенных зон и применяет ее к изображению"""
+        """Creates a mask of excluded zones and applies it to the image"""
         if not self.exclusion_zones:
             return frame
             
@@ -18,16 +18,13 @@ class PeopleDetector:
             pts = np.array(zone, np.int32).reshape((-1,1,2))
             cv2.fillPoly(mask, [pts], 255)
         
-        # Применяем маску к изображению
         masked_frame = cv2.bitwise_and(frame, frame, mask=~mask)
         return masked_frame
 
     def detect(self, frame: np.ndarray) -> int:
-        """Отправляет изображение на внешний сервис для детекции людей"""
-        # Применяем маску исключенных зон
+        """Sends the image to an external service for detecting people"""
         processed_frame = self._apply_mask(frame)
         
-        # Конвертируем кадр в JPEG для отправки
         _, img_encoded = cv2.imencode('.jpg', processed_frame)
         files = {'image': ('image.jpg', img_encoded.tobytes(), 'image/jpeg')}
         

@@ -1,22 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from clickhouse_driver import Client
-from datetime import datetime, timedelta
-from detection_service.config import CLICKHOUSE_CONFIG
-from .schemas import AnalyticsRequest
+from datetime import datetime
+from core.config import CLICKHOUSE_CONFIG, CAMERAS
+from .schemas import AnalyticsRequest, ZoneAnalyticsResponse
 import cv2
-from fastapi.responses import Response
-import numpy as np
-from detection_service.config import CAMERAS
 from rtsp_capture.hls_client import HLSCamera
 import base64
-import json
-from fastapi.responses import HTMLResponse
-import base64
-from fastapi.responses import JSONResponse
 from typing import List
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 def get_ch_client():
     client = Client(**CLICKHOUSE_CONFIG)
@@ -25,8 +18,8 @@ def get_ch_client():
     finally:
         client.disconnect()
 
-@router.get("/api/people-count/{hall_name}/")
-@router.get("/api/people-count/camera/{camera_id}/")
+@router.get("/people-count/{hall_name}/")
+@router.get("/people-count/camera/{camera_id}/")
 async def get_current_people(
     hall_name: str = None, 
     camera_id: str = None,
@@ -98,7 +91,7 @@ async def get_current_people(
         )
 
 
-@router.get("/api/people-analytics/{hall_name}/{date_from}/{date_to}/")
+@router.get("/people-analytics/{hall_name}/{date_from}/{date_to}/")
 async def get_analytics(
     request: AnalyticsRequest = Depends(),
     client: Client = Depends(get_ch_client)
@@ -151,7 +144,7 @@ async def get_analytics(
         )
 
 
-@router.get("/api/hall_frames/{hall_name}")
+@router.get("/hall_frames/{hall_name}")
 async def get_hall_screenshots(hall_name: str):
     try:
         hall_cameras = [
@@ -182,7 +175,7 @@ async def get_hall_screenshots(hall_name: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/api/peak-hours/{hall_name}/{date_from}/{date_to}/")
+@router.get("/peak-hours/{hall_name}/{date_from}/{date_to}/")
 async def get_peak_hours(
     hall_name: str,
     date_from: str,
@@ -230,6 +223,57 @@ async def get_peak_hours(
             "period": f"{date_from} to {date_to}",
             "data": [{"hour": row[0], "avg_people": round(row[1], 1)} for row in result]
         }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Server error: {str(e)}")
+    
+@router.get("/api/zone-analytics/{hall_name}/{date_from}/{date_to}/", response_model=List[ZoneAnalyticsResponse])
+async def get_zone_analytics(
+    hall_name: str,
+    date_from: str,
+    date_to: str,
+    client: Client = Depends(get_ch_client)
+):
+    try:
+        # Проверка дат
+        try:
+            dt_from = datetime.strptime(date_from, "%Y-%m-%d")
+            dt_to = datetime.strptime(date_to, "%Y-%m-%d")
+            if dt_to < dt_from:
+                raise HTTPException(400, "End date must be after start date")
+        except ValueError:
+            raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD")
+
+        query = """
+        SELECT 
+            zone_name,
+            AVG(people_count) as avg_people,
+            MAX(people_count) as max_people
+        FROM people_count
+        WHERE hall_name = %(hall_name)s
+          AND timestamp >= %(date_from)s
+          AND timestamp <= %(date_to)s
+          AND zone_name != ''
+        GROUP BY zone_name
+        ORDER BY avg_people DESC
+        """
+        
+        result = client.execute(query, {
+            "hall_name": hall_name,
+            "date_from": date_from,
+            "date_to": date_to
+        })
+        
+        if not result:
+            raise HTTPException(404, "No zone data available for the selected period")
+            
+        return [{
+            "zone_name": row[0],
+            "avg_people": round(row[1], 1),
+            "max_people": row[2]
+        } for row in result]
         
     except HTTPException:
         raise

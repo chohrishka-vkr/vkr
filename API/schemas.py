@@ -12,3 +12,8 @@ class CameraStatus(BaseModel):
     people_count: int
     last_update: datetime
     hall_name: str
+    
+class ZoneAnalyticsResponse(BaseModel):
+    zone_name: str
+    avg_people: float
+    max_people: int

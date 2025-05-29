@@ -8,16 +8,16 @@ class HLSCamera:
         self.hls_url = hls_url
         self.cap = cv2.VideoCapture(hls_url)
         if not self.cap.isOpened():
-            raise ConnectionError(f"Не удалось подключиться к {hls_url}")
+            raise ConnectionError(f"Couldn't connect to {hls_url}")
 
     def capture_frame(self) -> Tuple[np.ndarray, datetime]:
-        """Захват кадра в оперативную память"""
+        """Capturing a frame into RAM"""
         ret, frame = self.cap.read()
         if not ret:
-            raise RuntimeError("Не удалось получить кадр")
+            raise RuntimeError("Couldn't get a frame")
         return frame, datetime.now()
 
     def release(self):
-        """Освобождение ресурсов"""
+        """Freeing up resources"""
         if hasattr(self, 'cap') and self.cap.isOpened():
             self.cap.release()
