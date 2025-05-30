@@ -1,7 +1,8 @@
 import time
 import threading
 from clickhouse_driver import Client
-from core.config import CAMERAS, CLICKHOUSE_CONFIG
+from core.config import CAMERAS
+from core.utils import CLICKHOUSE_CONFIG
 from .hls_client import HLSCamera
 from detection_service.counter import PeopleCounter
 import cv2
@@ -28,30 +29,22 @@ class DetectionScheduler:
         """Обработка кадра с сохранением данных по зонам"""
         proc = self.processors[camera_id]
         try:
-            # Захват кадра
             frame, timestamp = proc["camera"].capture_frame()
             
-            # Получаем результат детекции
             result = proc["counter"].process_frame(frame)
             
-            # Получаем зоны для текущей камеры
             zones = proc["config"].get("zones", {})
             
             if zones:
-                # Если есть зоны - обрабатываем каждую отдельно
                 for zone_name, zone_coords in zones.items():
-                    # Создаем маску для текущей зоны
                     mask = np.zeros(frame.shape[:2], dtype=np.uint8)
                     pts = np.array(zone_coords, np.int32).reshape((-1,1,2))
                     cv2.fillPoly(mask, [pts], 255)
                     
-                    # Применяем маску к кадру
                     zone_frame = cv2.bitwise_and(frame, frame, mask=mask)
                     
-                    # Детекция людей в зоне
                     zone_count = proc["counter"].detector.detect(zone_frame)
                     
-                    # Сохраняем данные по зоне
                     self.ch_client.execute(
                         """INSERT INTO people_count VALUES""",
                         [{
@@ -65,7 +58,6 @@ class DetectionScheduler:
                     
                     print(f"[{zone_name}] People count: {zone_count}")
             else:
-                # Если зон нет - сохраняем общий счетчик
                 self.ch_client.execute(
                     """INSERT INTO people_count VALUES""",
                     [{

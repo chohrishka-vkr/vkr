@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_HOST=clickhouse
+      - DATABASE_PORT=9000
+      - DATABASE_USER=default
+      - DATABASE_PASSWORD=123
+      - DATABASE_NAME=fitness_analytics
+      - COUNTER_API_URL=http://10.61.17.48:8000/api/upload/
+    depends_on:
+      - clickhouse
+    volumes:
+      - .:/app
+      - ./app.log:/app/app.log
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    environment:
+      - CLICKHOUSE_DB=fitness_analytic
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=123
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+
+volumes:
+  clickhouse_data:

@@ -4,8 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import threading
 import time
 from rtsp_capture.scheduler import DetectionScheduler
-from core.config import CLICKHOUSE_CONFIG
+from core.utils import CLICKHOUSE_CONFIG
 from clickhouse_driver import Client
+import uvicorn
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,7 +48,6 @@ def run_monitoring():
 
 def run_web_server():
     """A function for launching a web server"""
-    import uvicorn
     logger.info("🚀 Launching the API Web Server...")
     uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)
 

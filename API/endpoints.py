@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from clickhouse_driver import Client
 from datetime import datetime
-from core.config import CLICKHOUSE_CONFIG, CAMERAS
-from .schemas import AnalyticsRequest, ZoneAnalyticsResponse
+from core.utils import CLICKHOUSE_CONFIG
+from core.config import CAMERAS
+from .schemas import AnalyticsRequest, ZoneAnalyticsHourlyResponse
 import cv2
 from rtsp_capture.hls_client import HLSCamera
 import base64
@@ -21,7 +22,7 @@ def get_ch_client():
 @router.get("/people-count/{hall_name}/")
 @router.get("/people-count/camera/{camera_id}/")
 async def get_current_people(
-    hall_name: str = None, 
+    hall_name: str = None,
     camera_id: str = None,
     client: Client = Depends(get_ch_client)
 ):
@@ -29,15 +30,14 @@ async def get_current_people(
         if camera_id:
             query = """
             SELECT 
-                people_count,
+                people_count as count,
                 timestamp
             FROM people_count
             WHERE camera_id = %(camera_id)s
             ORDER BY timestamp DESC
             LIMIT 1
             """
-            params = {"camera_id": camera_id}
-            result = client.execute(query, params)
+            result = client.execute(query, {"camera_id": camera_id})
             
             if not result:
                 raise HTTPException(
@@ -55,14 +55,14 @@ async def get_current_people(
             WITH latest_entries AS (
                 SELECT 
                     camera_id,
-                    people_count,
+                    people_count as count,
                     timestamp,
                     ROW_NUMBER() OVER (PARTITION BY camera_id ORDER BY timestamp DESC) as rn
                 FROM people_count
                 WHERE hall_name = %(hall_name)s
             )
             SELECT 
-                SUM(people_count) as total_people,
+                SUM(count) as count,
                 MAX(timestamp) as last_updated
             FROM latest_entries
             WHERE rn = 1
@@ -72,15 +72,19 @@ async def get_current_people(
             if not result or result[0][0] is None:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"No data found for hall {hall_name}"
+                    detail=f"No data found for specified parameters"
                 )
-            
+
             return {
                 "count": result[0][0],
                 "last_updated": result[0][1].strftime("%Y-%m-%d %H:%M:%S")
             }
         
-        return {"count": 0}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Please specify either hall_name or camera_id"
+            )
         
     except HTTPException:
         raise
@@ -89,7 +93,6 @@ async def get_current_people(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
         )
-
 
 @router.get("/people-analytics/{hall_name}/{date_from}/{date_to}/")
 async def get_analytics(
@@ -100,7 +103,7 @@ async def get_analytics(
         query = """
         SELECT 
             timestamp,
-            SUM(people_count) as total_people
+            SUM(people_count) as count
         FROM people_count
         WHERE hall_name = %(hall_name)s
         """
@@ -131,7 +134,7 @@ async def get_analytics(
         return {
             "data": [{
                 "timestamp": row[0].strftime("%Y-%m-%d %H:%M:%S"),
-                "total_people": row[1]
+                "count": row[1]
             } for row in results]
         }
         
@@ -194,7 +197,7 @@ async def get_peak_hours(
         query = """
         SELECT 
             toHour(timestamp) as hour,
-            AVG(people_count) as avg_people
+            AVG(people_count) as count
         FROM (
             SELECT 
                 timestamp,
@@ -221,7 +224,7 @@ async def get_peak_hours(
         return {
             "hall": hall_name,
             "period": f"{date_from} to {date_to}",
-            "data": [{"hour": row[0], "avg_people": round(row[1], 1)} for row in result]
+            "hourly_stats": [{"hour": row[0], "count": round(row[1], 1)} for row in result]
         }
         
     except HTTPException:
@@ -229,15 +232,14 @@ async def get_peak_hours(
     except Exception as e:
         raise HTTPException(500, f"Server error: {str(e)}")
     
-@router.get("/api/zone-analytics/{hall_name}/{date_from}/{date_to}/", response_model=List[ZoneAnalyticsResponse])
-async def get_zone_analytics(
+@router.get("/zone-analytics-hourly/{hall_name}/{date_from}/{date_to}/", response_model=List[ZoneAnalyticsHourlyResponse])
+async def get_zone_analytics_hourly(
     hall_name: str,
     date_from: str,
     date_to: str,
     client: Client = Depends(get_ch_client)
 ):
     try:
-        # Проверка дат
         try:
             dt_from = datetime.strptime(date_from, "%Y-%m-%d")
             dt_to = datetime.strptime(date_to, "%Y-%m-%d")
@@ -248,16 +250,16 @@ async def get_zone_analytics(
 
         query = """
         SELECT 
-            zone_name,
-            AVG(people_count) as avg_people,
-            MAX(people_count) as max_people
+            zone as zone_name,
+            toStartOfHour(timestamp) as hour,
+            SUM(people_count) as count
         FROM people_count
         WHERE hall_name = %(hall_name)s
           AND timestamp >= %(date_from)s
           AND timestamp <= %(date_to)s
-          AND zone_name != ''
-        GROUP BY zone_name
-        ORDER BY avg_people DESC
+          AND zone != ''
+        GROUP BY zone_name, hour
+        ORDER BY zone_name, hour
         """
         
         result = client.execute(query, {
@@ -269,11 +271,20 @@ async def get_zone_analytics(
         if not result:
             raise HTTPException(404, "No zone data available for the selected period")
             
+        analytics = {}
+        for row in result:
+            zone_name = row[0]
+            if zone_name not in analytics:
+                analytics[zone_name] = []
+            analytics[zone_name].append({
+                "hour": row[1].strftime("%Y-%m-%d %H:%M:%S"),
+                "count": row[2]
+            })
+        
         return [{
-            "zone_name": row[0],
-            "avg_people": round(row[1], 1),
-            "max_people": row[2]
-        } for row in result]
+            "zone_name": zone,
+            "hourly_data": data
+        } for zone, data in analytics.items()]
         
     except HTTPException:
         raise
