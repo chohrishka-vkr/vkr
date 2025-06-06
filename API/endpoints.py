@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from clickhouse_driver import Client
 from datetime import datetime
 from core.utils import CLICKHOUSE_CONFIG
@@ -9,8 +11,12 @@ import cv2
 from rtsp_capture.hls_client import HLSCamera
 import base64
 from typing import List
+import os
+from pathlib import Path
 
 router = APIRouter(prefix="/api")
+
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 def get_ch_client():
     client = Client(**CLICKHOUSE_CONFIG)
@@ -290,3 +296,84 @@ async def get_zone_analytics_hourly(
         raise
     except Exception as e:
         raise HTTPException(500, f"Server error: {str(e)}")
+
+@router.get("/camera-view", response_class=HTMLResponse)
+async def get_camera_view():
+    """Отображает веб-интерфейс для просмотра камер с полигонами"""
+    return templates.TemplateResponse("camera_view.html", {"request": {}})
+
+@router.get("/halls")
+async def get_halls():
+    """Возвращает список доступных залов"""
+    try:
+        halls = set()
+        for config in CAMERAS.values():
+            if "hall_name" in config:
+                halls.add(config["hall_name"])
+        return list(halls)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/cameras/{hall_name}")
+async def get_cameras_by_hall(hall_name: str):
+    """Возвращает список камер для конкретного зала"""
+    try:
+        cameras = []
+        for camera_id, config in CAMERAS.items():
+            if config.get("hall_name") == hall_name:
+                cameras.append({
+                    "id": camera_id,
+                    "name": config.get("name", f"Камера {camera_id}"),
+                    "hall_name": hall_name
+                })
+        if not cameras:
+            raise HTTPException(status_code=404, detail=f"Камеры для зала {hall_name} не найдены")
+        return cameras
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/camera/{camera_id}/data")
+async def get_camera_data(camera_id: str):
+    """Возвращает данные камеры: изображение и полигоны"""
+    try:
+        if camera_id not in CAMERAS:
+            raise HTTPException(status_code=404, detail="Камера не найдена")
+            
+        config = CAMERAS[camera_id]
+        camera = HLSCamera(config["url"])
+        
+        # Получаем кадр
+        frame, _ = camera.capture_frame()
+        camera.release()
+        
+        # Кодируем изображение в base64
+        _, img_encoded = cv2.imencode('.jpg', frame)
+        img_b64 = base64.b64encode(img_encoded).decode('utf-8')
+        
+        # Получаем полигоны из конфигурации
+        zones = config.get("zones", {})
+        polygons = []
+        
+        # Преобразуем координаты в относительные значения
+        height, width = frame.shape[:2]
+        for zone_name, zone_polygons in zones.items():
+            for points in zone_polygons:
+                # Преобразуем координаты в относительные значения (0-1)
+                normalized_points = [
+                    {"x": x / width, "y": y / height}
+                    for x, y in points
+                ]
+                polygons.append({
+                    "name": zone_name,
+                    "points": normalized_points
+                })
+        
+        return {
+            "image": img_b64,
+            "polygons": polygons
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Просмотр камер</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .camera-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 60px);
+        }
+        
+        #cameraCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .sidebar {
+            height: 100vh;
+            background-color: #f8f9fa;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .polygon-item {
+            cursor: pointer;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        
+        .polygon-item:hover, .polygon-item.active {
+            background-color: #e9ecef;
+        }
+        
+        .selector {
+            margin-bottom: 20px;
+        }
+
+        .no-data {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            font-size: 1.2em;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-9">
+                <div class="camera-container">
+                    <canvas id="cameraCanvas"></canvas>
+                    <div id="noDataMessage" class="no-data" style="display: none;">
+                        Выберите зал и камеру для просмотра
+                    </div>
+                </div>
+            </div>
+            <div class="col-3 sidebar">
+                <div class="selector" id="hallSelectorContainer">
+                    <label for="hallSelect" class="form-label">Выберите зал</label>
+                    <select id="hallSelect" class="form-select">
+                        <option value="">Выберите зал...</option>
+                    </select>
+                </div>
+                <div class="selector" id="cameraSelectorContainer">
+                    <label for="cameraSelect" class="form-label">Выберите камеру</label>
+                    <select id="cameraSelect" class="form-select" disabled>
+                        <option value="">Сначала выберите зал...</option>
+                    </select>
+                </div>
+                <h4>Полигоны</h4>
+                <div id="polygonList">
+                    <!-- Здесь будет список полигонов -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentCamera = null;
+        let polygons = [];
+        let activePolygonIndex = -1;
+        const canvas = document.getElementById('cameraCanvas');
+        const ctx = canvas.getContext('2d');
+        const noDataMessage = document.getElementById('noDataMessage');
+        
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.offsetWidth;
+            canvas.height = container.offsetHeight;
+            if (!currentCamera) {
+                noDataMessage.style.display = 'flex';
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        async function loadHalls() {
+            try {
+                const response = await fetch('/api/halls');
+                const halls = await response.json();
+                
+                const hallSelect = document.getElementById('hallSelect');
+                hallSelect.innerHTML = '<option value="">Выберите зал...</option>';
+                
+                halls.forEach(hall => {
+                    const option = document.createElement('option');
+                    option.value = hall;
+                    option.textContent = hall;
+                    hallSelect.appendChild(option);
+                });
+                
+                hallSelect.addEventListener('change', async (e) => {
+                    const cameraSelect = document.getElementById('cameraSelect');
+                    if (!e.target.value) {
+                        cameraSelect.disabled = true;
+                        cameraSelect.innerHTML = '<option value="">Сначала выберите зал...</option>';
+                        currentCamera = null;
+                        noDataMessage.style.display = 'flex';
+                        return;
+                    }
+                    
+                    await loadCameras(e.target.value);
+                });
+            } catch (error) {
+                console.error('Error loading halls:', error);
+            }
+        }
+
+        async function loadCameras(hallName) {
+            try {
+                const response = await fetch(`/api/cameras/${hallName}`);
+                const cameras = await response.json();
+                
+                const cameraSelect = document.getElementById('cameraSelect');
+                cameraSelect.innerHTML = '<option value="">Выберите камеру...</option>';
+                cameraSelect.disabled = false;
+                
+                cameras.forEach(camera => {
+                    const option = document.createElement('option');
+                    option.value = camera.id;
+                    option.textContent = camera.name;
+                    cameraSelect.appendChild(option);
+                });
+                
+                cameraSelect.addEventListener('change', (e) => {
+                    currentCamera = e.target.value;
+                    if (!currentCamera) {
+                        noDataMessage.style.display = 'flex';
+                        return;
+                    }
+                    noDataMessage.style.display = 'none';
+                    loadCameraData();
+                });
+            } catch (error) {
+                console.error('Error loading cameras:', error);
+            }
+        }
+
+        async function loadCameraData() {
+            if (!currentCamera) return;
+            
+            try {
+                const response = await fetch(`/api/camera/${currentCamera}/data`);
+                const data = await response.json();
+                
+                // Обновляем изображение
+                const img = new Image();
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    drawPolygons();
+                };
+                img.src = 'data:image/jpeg;base64,' + data.image;
+                
+                // Обновляем полигоны
+                polygons = data.polygons;
+                updatePolygonList();
+                
+            } catch (error) {
+                console.error('Error loading camera data:', error);
+            }
+        }
+
+        function drawPolygons() {
+            polygons.forEach((polygon, index) => {
+                ctx.beginPath();
+                ctx.moveTo(polygon.points[0].x * canvas.width, polygon.points[0].y * canvas.height);
+                
+                for (let i = 1; i < polygon.points.length; i++) {
+                    ctx.lineTo(polygon.points[i].x * canvas.width, polygon.points[i].y * canvas.height);
+                }
+                
+                ctx.closePath();
+                ctx.strokeStyle = index === activePolygonIndex ? '#ff0000' : '#00ff00';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                if (index === activePolygonIndex) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+                    ctx.fill();
+                }
+            });
+        }
+
+        function updatePolygonList() {
+            const container = document.getElementById('polygonList');
+            container.innerHTML = '';
+            
+            if (polygons.length === 0) {
+                container.innerHTML = '<div class="text-muted">Нет доступных полигонов</div>';
+                return;
+            }
+            
+            polygons.forEach((polygon, index) => {
+                const div = document.createElement('div');
+                div.className = `polygon-item ${index === activePolygonIndex ? 'active' : ''}`;
+                div.textContent = polygon.name;
+                
+                div.addEventListener('click', () => {
+                    activePolygonIndex = index === activePolygonIndex ? -1 : index;
+                    updatePolygonList();
+                    drawPolygons();
+                });
+                
+                container.appendChild(div);
+            });
+        }
+
+        canvas.addEventListener('click', (e) => {
+            if (!currentCamera) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / canvas.width;
+            const y = (e.clientY - rect.top) / canvas.height;
+            
+            polygons.forEach((polygon, index) => {
+                if (isPointInPolygon(x, y, polygon.points)) {
+                    activePolygonIndex = index === activePolygonIndex ? -1 : index;
+                    updatePolygonList();
+                    drawPolygons();
+                }
+            });
+        });
+
+        function isPointInPolygon(x, y, points) {
+            let inside = false;
+            for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+                const xi = points[i].x, yi = points[i].y;
+                const xj = points[j].x, yj = points[j].y;
+                
+                const intersect = ((yi > y) !== (yj > y))
+                    && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        // Обновление данных каждые 5 секунд
+        setInterval(() => {
+            if (currentCamera) {
+                loadCameraData();
+            }
+        }, 5000);
+        
+        // Инициализация
+        loadHalls();
+    </script>
+</body>
+</html> 
